@@ -3,68 +3,101 @@ package ru.mephi.abondarenko.financeapp;
 import java.util.Scanner;
 
 public class FinanceApp {
+	private static final Scanner scanner = new Scanner(System.in);
 
 	public static void main(String[] args) {
 		FinanceManager manager = new FinanceManager();
-		Scanner scanner = new Scanner(System.in);
 		boolean running = true;
 
 		while (running) {
 			System.out.println("Enter command (register, login, addIncome, addExpense, setBudget, showStatistics, transfer, exit):");
 			String command = scanner.nextLine();
 
-			switch (command) {
-				case "register" -> {
-					System.out.println("Enter username:");
-					String username = scanner.nextLine();
-					System.out.println("Enter password:");
-					String password = scanner.nextLine();
-					manager.registerUser(username, password);
+			try {
+				switch (command) {
+					case "register" -> handleRegister(manager);
+					case "login" -> handleLogin(manager);
+					case "addIncome" -> handleAddIncome(manager);
+					case "addExpense" -> handleAddExpense(manager);
+					case "setBudget" -> handleSetBudget(manager);
+					case "showStatistics" -> manager.showStatistics();
+					case "transfer" -> handleTransfer(manager);
+					case "exit" -> {
+						manager.exit();
+						running = false;
+					}
+					default -> System.out.println("Unknown command.");
 				}
-				case "login" -> {
-					System.out.println("Enter username:");
-					String loginUsername = scanner.nextLine();
-					System.out.println("Enter password:");
-					String loginPassword = scanner.nextLine();
-					manager.loginUser(loginUsername, loginPassword);
-				}
-				case "addIncome" -> {
-					System.out.println("Enter category:");
-					String incomeCategory = scanner.nextLine();
-					System.out.println("Enter amount:");
-					double incomeAmount = Double.parseDouble(scanner.nextLine());
-					manager.addIncome(incomeCategory, incomeAmount);
-				}
-				case "addExpense" -> {
-					System.out.println("Enter category:");
-					String expenseCategory = scanner.nextLine();
-					System.out.println("Enter amount:");
-					double expenseAmount = Double.parseDouble(scanner.nextLine());
-					manager.addExpense(expenseCategory, expenseAmount);
-				}
-				case "setBudget" -> {
-					System.out.println("Enter category:");
-					String budgetCategory = scanner.nextLine();
-					System.out.println("Enter limit:");
-					double budgetLimit = Double.parseDouble(scanner.nextLine());
-					manager.setBudget(budgetCategory, budgetLimit);
-				}
-				case "showStatistics" -> manager.showStatistics();
-				case "transfer" -> {
-					System.out.println("Enter recipient username:");
-					String recipientUsername = scanner.nextLine();
-					System.out.println("Enter amount:");
-					double transferAmount = Double.parseDouble(scanner.nextLine());
-					manager.transfer(recipientUsername, transferAmount);
-				}
-				case "exit" -> {
-					manager.exit();
-					running = false;
-				}
-				default -> System.out.println("Unknown command.");
+			} catch (IllegalArgumentException | IllegalStateException e) {
+				System.out.println("Error: " + e.getMessage());
 			}
 		}
 
 		scanner.close();
+	}
+
+	private static void handleRegister(FinanceManager manager) {
+		String username = readString("Enter username: ");
+		String password = readString("Enter password: ");
+		manager.registerUser(username, password);
+	}
+
+	private static void handleLogin(FinanceManager manager) {
+		String username = readString("Enter username: ");
+		String password = readString("Enter password: ");
+		manager.loginUser(username, password);
+	}
+
+	private static void handleAddIncome(FinanceManager manager) {
+		String category = readString("Enter category: ");
+		double amount = readDouble("Enter amount: ");
+		manager.addIncome(category, amount);
+	}
+
+	private static void handleAddExpense(FinanceManager manager) {
+		String category = readString("Enter category: ");
+		double amount = readDouble("Enter amount: ");
+		manager.addExpense(category, amount);
+	}
+
+	private static void handleSetBudget(FinanceManager manager) {
+		String category = readString("Enter category: ");
+		double limit = readDouble("Enter limit: ");
+		manager.setBudget(category, limit);
+	}
+
+	private static void handleTransfer(FinanceManager manager) {
+		String recipientUsername = readString("Enter recipient username: ");
+		double amount = readDouble("Enter amount: ");
+		manager.transfer(recipientUsername, amount);
+	}
+
+	private static String readString(String prompt) {
+		while (true) {
+			System.out.print(prompt);
+			String input = scanner.nextLine().trim();
+			if (input.isEmpty()) {
+				System.out.println("Input cannot be empty.");
+				continue;
+			}
+			return input;
+		}
+	}
+
+	private static double readDouble(String prompt) {
+		while (true) {
+			System.out.print(prompt);
+			String input = scanner.nextLine().trim();
+			try {
+				double value = Double.parseDouble(input);
+				if (value <= 0) {
+					System.out.println("Amount must be a positive number.");
+					continue;
+				}
+				return value;
+			} catch (NumberFormatException e) {
+				System.out.println("Invalid input. Please enter a valid number.");
+			}
+		}
 	}
 }

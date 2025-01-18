@@ -34,70 +34,139 @@ public class FinanceManager {
 		System.out.println("Exiting application.");
 	}
 
-
 	public void registerUser(String username, String password) {
-		if (!users.containsKey(username)) {
-			users.put(username, new User(username, password));
-			System.out.println("User registered successfully.");
-		} else {
-			System.out.println("Username already exists.");
+		if (username == null || username.trim().isEmpty()) {
+			throw new IllegalArgumentException("Username cannot be empty.");
 		}
+
+		if (password == null || password.trim().isEmpty()) {
+			throw new IllegalArgumentException("Password cannot be empty.");
+		}
+
+		if (users.containsKey(username)) {
+			throw new IllegalArgumentException("Username already exists.");
+		}
+
+		users.put(username, new User(username, password));
+		System.out.println("User registered successfully.");
 	}
 
 	public boolean loginUser(String username, String password) {
-		User user = users.get(username);
-		if (user != null && user.checkPassword(password)) {
-			currentUser = user;
-			System.out.println("Login successful.");
-			return true;
-		} else {
-			System.out.println("Invalid username or password.");
-			return false;
+		if (username == null || username.trim().isEmpty()) {
+			throw new IllegalArgumentException("Username cannot be empty.");
 		}
+
+		if (password == null || password.trim().isEmpty()) {
+			throw new IllegalArgumentException("Password cannot be empty.");
+		}
+
+		User user = users.get(username);
+		if (user == null || !user.checkPassword(password)) {
+			throw new IllegalArgumentException("Invalid username or password.");
+		}
+
+		currentUser = user;
+		System.out.println("Login successful.");
+		return true;
 	}
 
 	public void addIncome(String category, double amount) {
-		if (currentUser != null) {
-			currentUser.getWallet().addIncome(category, amount);
-			System.out.println("Income added successfully.");
-		} else {
-			System.out.println("No user logged in.");
-		}
+		validateUserLoggedIn();
+		validateCategory(category);
+		validateAmount(amount);
+
+		currentUser.getWallet().addIncome(category, amount);
+		System.out.println("Income added successfully.");
 	}
 
 	public void addExpense(String category, double amount) {
-		if (currentUser != null) {
-			currentUser.getWallet().addExpense(category, amount);
-			System.out.println("Expense added successfully.");
-		} else {
-			System.out.println("No user logged in.");
-		}
+		validateUserLoggedIn();
+		validateCategory(category);
+		validateAmount(amount);
+
+		currentUser.getWallet().addExpense(category, amount);
+		System.out.println("Expense added successfully.");
 	}
 
 	public void setBudget(String category, double limit) {
-		if (currentUser != null) {
-			currentUser.getWallet().setBudget(category, limit);
-			System.out.println("Budget set successfully.");
-		} else {
-			System.out.println("No user logged in.");
-		}
+		validateUserLoggedIn();
+		validateCategory(category);
+		validateAmount(limit);
+
+		currentUser.getWallet().setBudget(category, limit);
+		System.out.println("Budget set successfully.");
 	}
 
-
 	public void showStatistics() {
-		if (currentUser == null) {
-			System.out.println("No user logged in.");
-			return;
-		}
+		validateUserLoggedIn();
 
 		Wallet wallet = currentUser.getWallet();
 
-		double totalIncome = wallet.getTransactions().stream()
+		double totalIncome = calculateTotalIncome(wallet);
+		double totalExpenses = calculateTotalExpenses(wallet);
+
+		System.out.printf("Total income: %.1f%n", totalIncome);
+		printIncomeByCategory(wallet);
+		System.out.printf("Total expenses: %.1f%n", totalExpenses);
+		printBudgetByCategory(wallet);
+		printTransactions(wallet);
+	}
+
+	public void transfer(String recipientUsername, double amount) {
+		validateUserLoggedIn();
+		validateAmount(amount);
+
+		if (recipientUsername == null || recipientUsername.trim().isEmpty()) {
+			throw new IllegalArgumentException("Recipient username cannot be empty.");
+		}
+
+		User recipient = users.get(recipientUsername);
+		if (recipient == null) {
+			throw new IllegalArgumentException("Recipient not found.");
+		}
+
+		if (currentUser.getWallet().getBalance() < amount) {
+			throw new IllegalStateException("Insufficient funds.");
+		}
+
+		currentUser.getWallet().addExpense("Transfer to " + recipientUsername, amount);
+		recipient.getWallet().addIncome("Transfer from " + currentUser.getUsername(), amount);
+		System.out.println("Transfer successful.");
+	}
+
+	private void validateUserLoggedIn() {
+		if (currentUser == null) {
+			throw new IllegalStateException("No user logged in.");
+		}
+	}
+
+	private void validateCategory(String category) {
+		if (category == null || category.trim().isEmpty()) {
+			throw new IllegalArgumentException("Category cannot be empty.");
+		}
+	}
+
+	private void validateAmount(double amount) {
+		if (Double.isNaN(amount) || amount <= 0) {
+			throw new IllegalArgumentException("Amount must be a positive number.");
+		}
+	}
+
+	private double calculateTotalIncome(Wallet wallet) {
+		return wallet.getTransactions().stream()
 				.filter(Transaction::isIncome)
 				.mapToDouble(Transaction::getAmount)
 				.sum();
-		System.out.printf("Total income: %.1f%n", totalIncome);
+	}
 
+	private double calculateTotalExpenses(Wallet wallet) {
+		return wallet.getTransactions().stream()
+				.filter(t -> !t.isIncome())
+				.mapToDouble(Transaction::getAmount)
+				.sum();
+	}
+
+	private void printIncomeByCategory(Wallet wallet) {
 		Map<String, Double> incomeByCategory = wallet.getTransactions().stream()
 				.filter(Transaction::isIncome)
 				.collect(Collectors.groupingBy(
@@ -108,59 +177,28 @@ public class FinanceManager {
 		incomeByCategory.forEach((category, amount) ->
 				System.out.printf("%s: %.1f%n", category, amount)
 		);
-
-		double totalExpenses = wallet.getTransactions().stream()
-				.filter(t -> !t.isIncome())
-				.mapToDouble(Transaction::getAmount)
-				.sum();
-		System.out.printf("Total expenses: %.1f%n", totalExpenses);
-
-		System.out.println("Budget by category:");
-		for (Map.Entry<String, Budget> entry : wallet.getBudgets().entrySet()) {
-			String category = entry.getKey();
-			Budget budget = entry.getValue();
-
-			double expensesForCategory = wallet.getTransactions().stream()
-					.filter(t -> !t.isIncome() && t.getCategory().equals(category))
-					.mapToDouble(Transaction::getAmount)
-					.sum();
-
-			double remainingBudget = budget.getLimit() - expensesForCategory;
-
-			System.out.printf("%s: %.1f, Remaining budget: %.1f%n",
-					category, budget.getLimit(), remainingBudget);
-		}
-
-		System.out.println("\nTransactions:");
-		for (Transaction transaction : wallet.getTransactions()) {
-			System.out.println(transaction.getCategory() + ": " + transaction.getAmount() + " (" + (transaction.isIncome() ? "Income" : "Expense") + ")");
-		}
 	}
 
-	public void transfer(String recipientUsername, double amount) {
-		if (currentUser == null) {
-			System.out.println("No user logged in.");
-			return;
-		}
+	private void printBudgetByCategory(Wallet wallet) {
+		System.out.println("Budget by category:");
+		wallet.getBudgets().forEach((category, budget) -> {
+			double expensesForCategory = calculateExpensesForCategory(wallet, category);
+			double remainingBudget = budget.getLimit() - expensesForCategory;
+			System.out.printf("%s: %.1f, Remaining budget: %.1f%n", category, budget.getLimit(), remainingBudget);
+		});
+	}
 
-		if (amount <= 0) {
-			System.out.println("Invalid amount.");
-			return;
-		}
+	private double calculateExpensesForCategory(Wallet wallet, String category) {
+		return wallet.getTransactions().stream()
+				.filter(t -> !t.isIncome() && t.getCategory().equals(category))
+				.mapToDouble(Transaction::getAmount)
+				.sum();
+	}
 
-		User recipient = users.get(recipientUsername);
-		if (recipient == null) {
-			System.out.println("Recipient not found.");
-			return;
-		}
-
-		if (currentUser.getWallet().getBalance() < amount) {
-			System.out.println("Insufficient funds.");
-			return;
-		}
-
-		currentUser.getWallet().addExpense("Transfer to " + recipientUsername, amount);
-		recipient.getWallet().addIncome("Transfer from " + currentUser.getUsername(), amount);
-		System.out.println("Transfer successful.");
+	private void printTransactions(Wallet wallet) {
+		System.out.println("\nTransactions:");
+		wallet.getTransactions().forEach(transaction ->
+				System.out.println(transaction.getCategory() + ": " + transaction.getAmount() + " (" + (transaction.isIncome() ? "Income" : "Expense") + ")")
+		);
 	}
 }
